@@ -15,7 +15,6 @@ let growthGainMessage = "";
 let growthGainTimer = 0;
 let notificationText = "";
 let notificationTimer = 0;
-let stageGauge = 0;
 let stageProgress = {
   baby: 0,
   teen: {
@@ -103,6 +102,7 @@ let mainTheme01;
 let endingSong;
 let runningSound;
 let jumpSound;
+let eventGetSound; // ✅ 선택 시 재생할 효과음 변수
   
 // --- 애니메이션 관련 변수 ---
 let babyAnimationFrames = [];
@@ -135,6 +135,7 @@ function preload() {
   endingSong = loadSound('lifegameendingsong.mp3');
   runningSound = loadSound('runningsound.mp3');
   jumpSound = loadSound('jump.mp3');
+  eventGetSound = loadSound('eventget.mp3'); // ✅ 이벤트 옵션 선택음 로드
 
   gameFont = loadFont('RiaSans-Bold.ttf');
   
@@ -181,7 +182,6 @@ function preload() {
   mainMenu = loadImage('mainmenu.png');
   startButton = loadImage('startbutton.png');
 
-  // 버튼 이미지 로드
   backBtnImg = loadImage('back.png');
   fullscreenBtnImg = loadImage('fullscreen.png');
   settingStartBtnImg = loadImage('settingstart.png');
@@ -208,6 +208,7 @@ function setup() {
   if (endingSong) endingSong.setVolume(0.3);
   if (runningSound) runningSound.setVolume(0.5);
   if (jumpSound) jumpSound.setVolume(0.5);
+  if (eventGetSound) eventGetSound.setVolume(0.6); // ✅ 사운드 볼륨
 }
 
 function windowResized() {
@@ -251,7 +252,7 @@ function drawThinText(txt, x, y, size, alignX, alignY, col = color(0)) {
   push();
   textSize(size);
   textAlign(alignX, alignY);
-  noStroke(); // 핵심
+  noStroke(); 
   fill(col);
   text(txt, x, y);
   pop();
@@ -317,9 +318,6 @@ function spawnDust(x, y, count) {
   }
 }
 
-// ==========================================
-// 2배 길이(1280px) P5.js 절차적 무한루프 배경
-// ==========================================
 function drawProceduralBackground(theme, x, y, w, h) {
   push();
   translate(x - 1, y);
@@ -493,10 +491,8 @@ function draw() {
   else if (gameState === "PLAYING") drawGameScene();
   else if (gameState === "ENDING") drawEndingScreen();
   
-  // 우측 상단 공통 [전체화면] 버튼 (위치 고정) - PNG 버튼 적용
   drawImageButton(fullscreenBtnImg, GW - 110, 15, 95, 40);
 
-  // --- 화면 전환 (Fade In/Out) ---
   if (transitionState === "FADE_OUT") {
     transitionAlpha += 15;
     if (transitionAlpha >= 255) {
@@ -504,16 +500,14 @@ function draw() {
       gameState = nextGameState;
       transitionState = "FADE_IN";
       
-      // ✅ 메인 배경음악 볼륨 조절 로직 추가
       if (mainTheme01) {
         if (gameState === "PLAYING") {
-          mainTheme01.setVolume(0.15); // 게임 화면에서는 브금 소리 작게
+          mainTheme01.setVolume(0.15); 
         } else {
-          mainTheme01.setVolume(0.3);  // 메인 메뉴 등에서는 원래 볼륨으로
+          mainTheme01.setVolume(0.3);  
         }
       }
 
-      // MAIN_MENU나 PLAYING 등으로 넘어가면서 필요한 브금 제어
       if (gameState !== "ENDING" && mainTheme01 && !mainTheme01.isPlaying()) {
         mainTheme01.loop();
       }
@@ -532,7 +526,6 @@ function draw() {
     rect(0, 0, GW, GH);
   }
 
-  // --- 클릭 파티클 효과 ---
   for (let i = clickEffects.length - 1; i >= 0; i--) {
     let ce = clickEffects[i];
     noFill();
@@ -544,7 +537,6 @@ function draw() {
     if (ce.alpha <= 0) clickEffects.splice(i, 1);
   }
 
-  // --- 커스텀 2D 커서 ---
   fill(255, 200, 200); stroke(0); strokeWeight(3); strokeJoin(ROUND);
   triangle(mouseXScaled, mouseYScaled, mouseXScaled + 20, mouseYScaled + 8, mouseXScaled + 8, mouseYScaled + 20);
 
@@ -580,6 +572,31 @@ function draw() {
     fill(255); textAlign(CENTER, CENTER); textSize(18); text(notificationText, GW/2, 55);
     pop();
     notificationTimer--;
+  }
+}
+
+// ✅ [레벨업/종료 조건 분리 코드] 수시로 레벨업이나 엔딩 조건을 판정
+function checkLevelUp() {
+  if (gameMode !== "STORY") return;
+  
+  if (currentStage === 1 && itemScores["기본"] >= 10) {
+    currentStage = 2; stageEvent1Done = false; stageEvent2Done = false; items = []; bgX = 0;
+    showNotification("유아기를 졸업하고 청소년기가 되었습니다!");
+  } 
+  else if (currentStage === 2 && (itemScores["컴퓨터"] >= 10 || itemScores["음악"] >= 10 || itemScores["책"] >= 10)) {
+    let best = max(itemScores["컴퓨터"], itemScores["음악"], itemScores["책"]);
+    if (best === itemScores["컴퓨터"]) chosenJob = "개발자";
+    else if (best === itemScores["음악"]) chosenJob = "가수";
+    else chosenJob = "의사";
+    currentStage = 3; stageEvent1Done = false; stageEvent2Done = false; items = []; bgX = 0;
+    showNotification("성인이 되었습니다!");
+  } 
+  else if (currentStage === 3) {
+    if (itemScores["직업전용"] >= 20 || itemScores["술담배"] >= 10) {
+      if (transitionState === "NONE" && gameState !== "ENDING") {
+        changeState("ENDING");
+      }
+    }
   }
 }
 
@@ -631,6 +648,21 @@ function drawMainMenu() {
   } else {
     drawCanvasButton(btnX, btnY, btnW, btnH, "게임 시작", 28, color(255, 150, 150), color(255, 180, 180), color(220, 120, 120));
   }
+
+  push();
+textSize(10);
+textAlign(CENTER, BOTTOM);
+// 그림자
+noStroke();
+fill(0, 0, 0, 120);
+text("김나림, 김형진, 윤소연", GW / 2 + 1.5, GH - 20 + 1.5);
+// 외곽선 + 본문
+stroke(color(252, 182, 122));
+strokeWeight(0.8);
+strokeJoin(ROUND);
+fill(255, 255, 180);
+text("김나림, 김형진, 윤소연", GW / 2, GH - 20);
+pop();
 }
 
 function drawModeSelect() {
@@ -680,7 +712,7 @@ function drawSettingsScreen() {
   text(`현재 인식 상태: [ ${expression} ]`, GW / 2, 120);
 
   if (expression === "웃음") { drawTextWithOutline("웃으면 캐릭터가 점프합니다!", GW / 2, 150, 16, CENTER, TOP, color(200, 255, 200)); }
-  if (expression === "입 벌림") { drawTextWithOutline("입을 벌리면 캐릭터가 더블 점프합니다!", GW / 2, 150, 16, CENTER, TOP, color(200, 255, 200)); }
+  if (expression === "입 벌림") { drawTextWithOutline("입 벌리면 캐릭터가 더블 점프합니다!", GW / 2, 150, 16, CENTER, TOP, color(200, 255, 200)); }
   
   drawTextWithOutline(`1. 내 기본 입꼬리 거리: ${Math.floor(currentMouthWidth)}`, 50, 190, 20, LEFT, CENTER);
   drawTextWithOutline("웃음 인식 기준점 :", 50, 230, 20, LEFT, CENTER);
@@ -715,7 +747,6 @@ function drawTutorialScreen() {
     if (remain === 0 && transitionState === "NONE") { changeState("PLAYING"); }
   }
 
-  // 튜토리얼 스킵 버튼 (동적 비율 유지)
   let skipW = 140;
   let skipH = tutorialSkipBtnImg ? skipW * (tutorialSkipBtnImg.height / tutorialSkipBtnImg.width) : 40;
   drawImageButton(tutorialSkipBtnImg, GW - skipW - 20, GH - skipH - 20, skipW, skipH);
@@ -724,7 +755,7 @@ function drawTutorialScreen() {
 function openRandomEvent(){
   eventActive = true;
   isPaused = true;
-
+  
   if(currentStage === 1){
     let stage1Events = [
       { title:"첫 걸음마", description:"부모님이 두 팔을 벌리고 기다리고 있습니다.", options:[ {name:"용감하게 걸어간다", reward:20}, {name:"천천히 기어간다", reward:10}, {name:"주저앉는다", reward:5} ] },
@@ -745,18 +776,62 @@ function openRandomEvent(){
   }
   else if(currentStage === 3){
     if(chosenJob === "개발자"){
-      currentEvent = { title:"프로젝트 제안", description:"대기업에서 프로젝트 제안이 들어왔다.", options:[ {name:"수락", reward:5}, {name:"검토", reward:3}, {name:"거절", reward:1} ] };
+      let devEvents = [
+        { title:"프로젝트 제안", description:"대기업에서 프로젝트 제안이 들어왔다.", options:[
+          {name:"수락", reward:5}, {name:"검토", reward:3}, {name:"거절", reward:1}
+        ]},
+        { title:"팀원 갈등", description:"팀원과 기술 방향으로 의견 충돌이 생겼다.", options:[
+          {name:"내 주장을 관철", reward:4}, {name:"타협점을 찾는다", reward:5}, {name:"그냥 따른다", reward:2}
+        ]},
+        { title:"이직 제안", description:"스타트업에서 파격적인 조건으로 이직을 제안했다.", options:[
+          {name:"이직한다", reward:5}, {name:"조건을 협상한다", reward:4}, {name:"거절한다", reward:2}
+        ]},
+        { title:"번아웃", description:"야근이 계속되어 번아웃이 왔다.", options:[
+          {name:"휴가를 낸다", reward:4}, {name:"억지로 버틴다", reward:2}, {name:"퇴사한다", reward:1}
+        ]}
+      ];
+      currentEvent = random(devEvents);
     }
     else if(chosenJob === "의사"){
-      currentEvent = { title:"응급 환자", description:"응급 환자가 병원에 실려왔다.", options:[ {name:"직접 치료", reward:5}, {name:"선배 도움", reward:3}, {name:"인계", reward:1} ] };
+      let docEvents = [
+        { title:"응급 환자", description:"응급 환자가 병원에 실려왔다.", options:[
+          {name:"직접 치료", reward:5}, {name:"선배 도움", reward:3}, {name:"인계", reward:1}
+        ]},
+        { title:"의료 분쟁", description:"환자 보호자가 치료 결과에 이의를 제기했다.", options:[
+          {name:"충분히 설명한다", reward:5}, {name:"법적 대응 준비", reward:3}, {name:"무시한다", reward:1}
+        ]},
+        { title:"해외 연수 기회", description:"유명 병원에서 해외 연수 제안이 들어왔다.", options:[
+          {name:"지원한다", reward:5}, {name:"고민해본다", reward:3}, {name:"포기한다", reward:2}
+        ]},
+        { title:"과로", description:"당직이 계속되어 몸이 한계에 다다랐다.", options:[
+          {name:"휴가를 신청한다", reward:4}, {name:"버텨낸다", reward:3}, {name:"병원을 옮긴다", reward:2}
+        ]}
+      ];
+      currentEvent = random(docEvents);
     }
     else if(chosenJob === "가수"){
-      currentEvent = { title:"방송 출연", description:"인기 프로그램에서 섭외가 들어왔다.", options:[ {name:"출연", reward:5}, {name:"연습 후", reward:3}, {name:"거절", reward:1} ] };
+      let musEvents = [
+        { title:"방송 출연", description:"인기 프로그램에서 섭외가 들어왔다.", options:[
+          {name:"출연", reward:5}, {name:"연습 후 출연", reward:3}, {name:"거절", reward:1}
+        ]},
+        { title:"악플 논란", description:"SNS에 악플이 쏟아지기 시작했다.", options:[
+          {name:"공식 입장 발표", reward:5}, {name:"무시한다", reward:3}, {name:"SNS를 닫는다", reward:2}
+        ]},
+        { title:"해외 공연 제안", description:"해외 페스티벌에서 공연 요청이 왔다.", options:[
+          {name:"수락한다", reward:5}, {name:"일정을 조율한다", reward:4}, {name:"거절한다", reward:1}
+        ]},
+        { title:"슬럼프", description:"새 앨범 작업이 막혀 슬럼프가 왔다.", options:[
+          {name:"여행을 떠난다", reward:4}, {name:"동료에게 도움을 구한다", reward:5}, {name:"혼자 버틴다", reward:2}
+        ]}
+      ];
+      currentEvent = random(musEvents);
     }
   }
 }
 
 function drawGameScene() {
+  
+  
   background(0); 
   let theme = getBackgroundTheme();
   let drawX = Math.floor(bgX); 
@@ -806,29 +881,12 @@ function drawGameScene() {
       let d = dist(player.x + player.size/2, player.y - player.size/2, item.x, item.y);
       if (d < player.size/2 + item.size/2) {
         if (gameMode === "STORY") {
+          // ✅ 아이템 삭제를 배열 인덱스 꼬임 방지를 위해 먼저 수행
           itemScores[item.type]++;
-          stageGauge += 10;
-          checkStageEvents();
           items.splice(i, 1); 
-          
-          if(currentStage === 1 && stageGauge >= 100){
-            currentStage = 2; stageGauge = 0; stageEvent1Done = false; stageEvent2Done = false; items = []; bgX = 0;
-            showNotification("유아기를 졸업하고 청소년기가 되었습니다!");
-          }
-          else if(currentStage === 2 && stageGauge >= 100){
-            let best = max(itemScores["컴퓨터"], itemScores["음악"], itemScores["책"]);
-            if(best === itemScores["컴퓨터"]){ chosenJob = "개발자"; }
-            else if(best === itemScores["음악"]){ chosenJob = "가수"; }
-            else{ chosenJob = "의사"; }
-            currentStage = 3; stageGauge = 0; stageEvent1Done = false; stageEvent2Done = false; items = []; bgX = 0;
-            showNotification("성인이 되었습니다!");
-          }
-          else if (currentStage === 3) {
-            if (itemScores["직업전용"] >= 20 || itemScores["술담배"] >= 10) {
-              changeState("ENDING");
-              return;
-            }
-          }
+
+          checkStageEvents(); // 이벤트 발생 조건
+          checkLevelUp();     // 레벨업 & 엔딩
         } 
         else if (gameMode === "CHALLENGE") {
           if (item.type === "장애물") challengeHP -= 3;
@@ -857,12 +915,11 @@ function drawGameScene() {
   
   player.display();
   
-  // 도전 모드에서는 성장 게이지 비활성화
   if (gameMode === "STORY") {
     drawStageGauge();
   }
 
-  // --- UI 출력 ---
+  // ✅ UI 출력 시 소수점 자르기 (Math.floor 적용)
   if (gameMode === "STORY") {
     let stageName = currentStage === 1 ? "유아기" : currentStage === 2 ? "청소년기" : "성년기";
     drawTextWithOutline(`[Stage ${currentStage}] ${stageName}`, 15, 15, 20, LEFT, TOP);
@@ -870,13 +927,13 @@ function drawGameScene() {
 
     if (currentStage === 1) {
       drawTextWithOutline("안내: 아이템을 10개 먹어 아기를 성장시키세요!", 15, 75, 16, LEFT, TOP);
-      drawTextWithOutline(`습득: ${itemScores["기본"]} / 10`, 15, 100, 16, LEFT, TOP);
+      drawTextWithOutline(`습득: ${Math.floor(itemScores["기본"])} / 10`, 15, 100, 16, LEFT, TOP);
     } else if (currentStage === 2) {
       drawTextWithOutline("안내: 원하는 직업 아이템을 먼저 10개 모으세요!", 15, 75, 16, LEFT, TOP);
-      drawTextWithOutline(`컴퓨터: ${itemScores["컴퓨터"]}/10  &  음표: ${itemScores["음악"]}/10  &  책: ${itemScores["책"]}/10`, 15, 100, 16, LEFT, TOP);
+      drawTextWithOutline(`코딩: ${Math.floor(itemScores["컴퓨터"])}/10  &  음악: ${Math.floor(itemScores["음악"])}/10  &  공부: ${Math.floor(itemScores["책"])}/10`, 15, 100, 16, LEFT, TOP);
     } else if (currentStage === 3) {
       drawTextWithOutline(`당신의 직업: [${chosenJob}]`, 15, 75, 18, LEFT, TOP, color(150, 255, 150));
-      drawTextWithOutline(`경험치: ${itemScores["직업전용"]}/20  &  술/담배: ${itemScores["술담배"]}/10`, 15, 100, 16, LEFT, TOP);
+      drawTextWithOutline(`경험치: ${Math.floor(itemScores["직업전용"])}/20  &  술/담배: ${Math.floor(itemScores["술담배"])}/10`, 15, 100, 16, LEFT, TOP);
     }
   } 
   else if (gameMode === "CHALLENGE") {
@@ -922,7 +979,6 @@ function drawGameScene() {
     drawCanvasButton(GW/2 + 10, GH/2 + 20, 100, 45, "메인메뉴", 16);
   }
 
-  // --- PIP(미니 캠) ---
   let camW = 100; let camH = 75; let camX = GW - camW - 15; let camY = 70; 
   push(); drawingContext.save(); drawingContext.beginPath(); drawingContext.roundRect(camX, camY, camW, camH, 15); drawingContext.clip();
   translate(camX + camW, camY); scale(-1, 1); image(video, 0, 0, camW, camH);
@@ -960,7 +1016,6 @@ function drawEndingScreen() {
       endingCalculated = true;
       if (mainTheme01 && mainTheme01.isPlaying()) mainTheme01.stop();
       if (runningSound && runningSound.isPlaying()) runningSound.stop();
-      // 스토리 모드 엔딩곡 반복 재생
       if (endingSong && !endingSong.isPlaying()) endingSong.loop(); 
     }
   } else {
@@ -1031,7 +1086,7 @@ function resetGameValues() {
   items = []; particles = [];
   currentStage = 1; itemSpawnTimer = 0; smileStack = 0; openMouthStack = 0;
   chosenJob = ""; endingCalculated = false; challengeScore = 0; challengeHP = 10;
-  isPaused = false; gameFrame = 0; tutorialCompleteTime = 0; stageGauge = 0;
+  isPaused = false; gameFrame = 0; tutorialCompleteTime = 0;
   isNewRecord = false; newRecordAnimTimer = 0; currentHighScore = highScores[0] || 0;
   for (let key in itemScores) itemScores[key] = 0;
   bgX = 0;
@@ -1039,11 +1094,9 @@ function resetGameValues() {
 }
 
 function mousePressed() {
-  // 브라우저의 AudioContext 강제 활성화 (사용자 첫 클릭 시점에 메인테마 재생)
   if (getAudioContext().state !== 'running') {
     userStartAudio();
   }
-  // 엔딩 화면이 아닐 때 어디를 클릭하든 배경음이 안나오고 있으면 재생 (재생 중지 방지)
   if (gameState !== "ENDING" && mainTheme01 && !mainTheme01.isPlaying()) {
     mainTheme01.loop();
   }
@@ -1054,20 +1107,17 @@ function mousePressed() {
 
   let isClicked = (bx, by, bw, bh) => mouseXScaled > bx && mouseXScaled < bx + bw && mouseYScaled > by && mouseYScaled < by + bh;
 
-  // 전체화면
   if (isClicked(GW - 110, 15, 95, 40)) {
     fullscreen(!fullscreen());
     return;
   }
 
-  // MAIN MENU
   if (gameState === "MAIN_MENU") {
     let btnW = 200; let btnH = 60; let btnX = GW / 2 - btnW / 2; let btnY = GH / 2 + 50;
     if (isClicked(btnX, btnY, btnW, btnH)) { changeState("MODE_SELECT"); }
     return;
   }
 
-  // MODE SELECT
   if (gameState === "MODE_SELECT") {
     if (isClicked(GW / 2 - 220, 200, 200, 100)) { gameMode = "STORY"; resetGameValues(); changeState("SETTINGS"); return; }
     if (isClicked(GW / 2 + 20, 200, 200, 100)) { gameMode = "CHALLENGE"; resetGameValues(); changeState("CHAR_SELECT"); return; }
@@ -1075,7 +1125,6 @@ function mousePressed() {
     return;
   }
 
-  // CHARACTER SELECT
   if (gameState === "CHAR_SELECT") {
     let chars = ["아기", "청소년", "의사", "개발자", "가수"];
     for (let i = 0; i < chars.length; i++) {
@@ -1086,7 +1135,6 @@ function mousePressed() {
     return;
   }
 
-  // SETTINGS
   if (gameState === "SETTINGS") {
     if (isClicked(15, 15, 95, 40)) {
       if (gameMode === "STORY") changeState("MODE_SELECT");
@@ -1101,7 +1149,6 @@ function mousePressed() {
     return;
   }
 
-  // TUTORIAL
   if (gameState === "TUTORIAL") {
     let skipW = 140;
     let skipH = tutorialSkipBtnImg ? skipW * (tutorialSkipBtnImg.height / tutorialSkipBtnImg.width) : 40;
@@ -1111,7 +1158,6 @@ function mousePressed() {
     return;
   }
 
-  // PLAYING
   if (gameState === "PLAYING") {
     if (eventActive) {
       for (let i = 0; i < currentEvent.options.length; i++) {
@@ -1119,19 +1165,46 @@ function mousePressed() {
         if (isClicked(x, 220, 120, 60)) {
           let option = currentEvent.options[i];
           let popupMsg = "";
-          if (currentStage === 1) { stageGauge += option.reward; popupMsg = "성장 +" + option.reward; } 
+          
+          // ✅ 이벤트 옵션 선택 시 사운드 한 번 재생
+          if (eventGetSound) eventGetSound.play();
+          
+          if (currentStage === 1) { 
+            // 10점 만점 단위 스케일 조정 적용 (보상 나누기 10)
+            itemScores["기본"] += option.reward / 10; 
+            popupMsg = "성장 +" + option.reward; 
+          } 
           else if (currentStage === 2) {
-            stageGauge += option.reward;
-            if (option.name.includes("컴퓨터") || option.name.includes("개발") || option.name.includes("게임")) { itemScores["컴퓨터"] += Math.floor(option.reward / 5); popupMsg = "개발 적성 +" + option.reward; } 
-            else if (option.name.includes("음악") || option.name.includes("놀고")) { itemScores["음악"] += Math.floor(option.reward / 5); popupMsg = "음악성 +" + option.reward; } 
-            else { itemScores["책"] += Math.floor(option.reward / 5); popupMsg = "학구열 +" + option.reward; }
+            let isStudy = option.name.includes("공부") || option.name.includes("책");
+            let isCoding = option.name.includes("컴퓨터") || option.name.includes("개발") || option.name.includes("게임");
+            let isMusic = option.name.includes("음악");
+            
+            let inc = option.reward / 10;
+            let added = false;
+            
+            // 키워드에 따라 개별적으로 게이지 증가
+            if (isStudy) { itemScores["책"] += inc; popupMsg = "학구열 +" + option.reward; added = true; }
+            if (isCoding) { itemScores["컴퓨터"] += inc; popupMsg = "코딩 적성 +" + option.reward; added = true; }
+            if (isMusic) { itemScores["음악"] += inc; popupMsg = "음악성 +" + option.reward; added = true; }
+            
+            // 아무것도 매칭되지 않으면 3가지 모두 증가
+            if (!added) {
+              itemScores["책"] += inc;
+              itemScores["컴퓨터"] += inc;
+              itemScores["음악"] += inc;
+              popupMsg = "전체 능력치 +" + option.reward;
+            }
           } 
           else if (currentStage === 3) {
-            let gaugeInc = option.reward * 5; stageGauge += gaugeInc; itemScores["직업전용"] += option.reward; popupMsg = "인생 성공 +" + gaugeInc;
+            itemScores["직업전용"] += option.reward; 
+            popupMsg = "인생 성공 +" + (option.reward * 5); // 기존 체감 유지
           }
-          if(stageGauge >= 100) stageGauge = 100;
+          
+          checkLevelUp(); // 증가 후 바로 레벨업/엔딩 체크
+
           showGrowthPopup(popupMsg);
-          eventActive = false; isPaused = false; return;
+          eventActive = false; isPaused = false; 
+          return;
         }
       }
     }
@@ -1150,10 +1223,8 @@ function mousePressed() {
     return;
   }
 
-  // ENDING
   if (gameState === "ENDING") {
     if (isClicked(GW / 2 - 100, 420, 200, 45)) {
-      // 메인 메뉴로 돌아가면 엔딩 노래 중지
       if (endingSong && endingSong.isPlaying()) endingSong.stop();
       changeState("MAIN_MENU");
     }
@@ -1164,31 +1235,31 @@ function keyPressed() {
   if (key === 'f' || key === 'F') { fullscreen(!fullscreen()); }
 }
 
+// ✅ [동기화 코드] 좌측 하단 게이지를 그릴 때 1, 2, 3 단계에 맞춰 동적으로 생성
 function drawStageGauge() {
-  let gaugeX = 20; let gaugeY = GH - 50; let gaugeW = 220; let gaugeH = 25;
-  let progress = 0; let maxValue = 100; let label = "";
+  let drawBar = (label, progress, maxVal, col, x, y, w, h) => {
+    progress = min(progress, maxVal);
+    noStroke(); fill(50, 200); rect(x, y, w, h, 15);
+    let fillW = map(progress, 0, maxVal, 0, w);
+    fill(col); rect(x, y, fillW, h, 15);
+    stroke(255); strokeWeight(3); noFill(); rect(x, y, w, h, 15);
+    
+    let tSize = h < 20 ? 12 : 16;
+    drawTextWithOutline(`${label} : ${Math.floor(progress)} / ${maxVal}`, x + w/2, y + h/2 - (h<20?2:0), tSize, CENTER, CENTER);
+  };
 
-  if (currentStage === 1) { progress = stageGauge; maxValue = 100; label = "성장 게이지"; } 
-  else if (currentStage === 2) { progress = stageGauge; maxValue = 100; label = "진로 탐색"; } 
-  else if (currentStage === 3) { progress = stageGauge; maxValue = 100; label = "인생 성공"; }
-
-  progress = min(progress, maxValue);
-  noStroke(); fill(50, 200); rect(gaugeX, gaugeY, gaugeW, gaugeH, 15);
-  let fillWidth = map(progress, 0, maxValue, 0, gaugeW);
-
-  if (currentStage === 1) fill(100, 200, 255); else if (currentStage === 2) fill(255, 180, 100); else fill(100, 255, 120);
-  rect(gaugeX, gaugeY, fillWidth, gaugeH, 15);
-  stroke(255); strokeWeight(3); noFill(); rect(gaugeX, gaugeY, gaugeW, gaugeH, 15);
-
-  drawTextWithOutline(`${label} : ${progress} / ${maxValue}`, gaugeX + gaugeW/2, gaugeY + 12, 16, CENTER, CENTER);
-
-  if (currentStage === 3) {
-    let dangerProgress = itemScores["술담배"];
-    noStroke(); fill(50, 200); rect(gaugeX + 260, gaugeY, gaugeW, gaugeH, 15); 
-    let dangerWidth = map(dangerProgress, 0, 10, 0, gaugeW);
-    fill(255, 60, 60); rect(gaugeX + 260, gaugeY, dangerWidth, gaugeH, 15);
-    stroke(255); strokeWeight(3); noFill(); rect(gaugeX + 260, gaugeY, gaugeW, gaugeH, 15); 
-    drawTextWithOutline(`위험 : ${dangerProgress} / 10`, gaugeX + 260 + gaugeW/2, gaugeY + 12, 16, CENTER, CENTER);
+  if (currentStage === 1) { 
+    drawBar("성장 게이지", itemScores["기본"], 10, color(100, 200, 255), 20, GH - 50, 220, 25);
+  } 
+  else if (currentStage === 2) { 
+    // 청소년기는 3개의 게이지 바 출력
+    drawBar("코딩 게이지", itemScores["컴퓨터"], 10, color(100, 255, 100), 20, GH - 75, 200, 18);
+    drawBar("음악 게이지", itemScores["음악"], 10, color(255, 150, 200), 20, GH - 50, 200, 18);
+    drawBar("공부 게이지", itemScores["책"], 10, color(100, 150, 255), 20, GH - 25, 200, 18);
+  } 
+  else if (currentStage === 3) { 
+    drawBar("인생 성공", itemScores["직업전용"], 20, color(100, 255, 120), 20, GH - 50, 220, 25);
+    drawBar("위험", itemScores["술담배"], 10, color(255, 60, 60), 280, GH - 50, 220, 25);
   }
 }
 
@@ -1203,7 +1274,6 @@ class Player {
       this.vy = this.jumpPower; 
       this.jumpCount = 1; 
       spawnDust(this.x + this.size/2, this.y, 10); 
-      // 점프 사운드 재생
       if (jumpSound) jumpSound.play();
     }
   }
@@ -1213,7 +1283,6 @@ class Player {
       this.vy = this.jumpPower * 1.2; 
       this.jumpCount = 2; 
       spawnDust(this.x + this.size/2, this.y, 15); 
-      // 더블점프 사운드 재생
       if (jumpSound) jumpSound.play();
     }
   }
